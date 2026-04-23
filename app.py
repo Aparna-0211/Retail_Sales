@@ -5,7 +5,7 @@ import plotly.express as px
 st.set_page_config(page_title="Retail Dashboard", layout="wide")
 
 # ----------------------------
-# 🎨 Glass UI Styling
+# Glass UI Styling
 # ----------------------------
 st.markdown("""
 <style>
@@ -23,7 +23,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("✨ Retail Sales Intelligence Dashboard")
+st.title(" Retail Sales Intelligence Dashboard")
 st.markdown("Interactive • Smart • Real-time 🚀")
 
 # ----------------------------
@@ -62,7 +62,7 @@ filtered_df = df[
 ]
 
 # ----------------------------
-# 🔎 Search Feature
+# Search Feature
 # ----------------------------
 search = st.text_input("🔎 Search Product")
 
@@ -72,29 +72,29 @@ if search:
     ]
 
 # ----------------------------
-# 🎯 KPI Section
+#  KPI Section
 # ----------------------------
 col1, col2, col3 = st.columns(3)
 
-col1.metric("💰 Total Sales", f"{filtered_df['TotalSales'].sum():,.0f}")
-col2.metric("📦 Orders", filtered_df['InvoiceNo'].nunique())
-col3.metric("🌍 Countries", filtered_df['Country'].nunique())
+col1.metric("Total Sales", f"{filtered_df['TotalSales'].sum():,.0f}")
+col2.metric(" Orders", filtered_df['InvoiceNo'].nunique())
+col3.metric(" Countries", filtered_df['Country'].nunique())
 
 st.markdown("---")
 
 # ----------------------------
-# 🎮 View Toggle
+#  View Toggle
 # ----------------------------
 view = st.radio("Select View", ["Summary", "Detailed"])
 
 # ----------------------------
-# 📊 Charts
+#  Charts
 # ----------------------------
 col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
-    st.subheader("🏆 Top Products")
+    st.subheader(" Top Products")
 
     top_products = (
         filtered_df.groupby('Description')['TotalSales']
@@ -131,10 +131,10 @@ with col2:
 st.markdown("---")
 
 # ----------------------------
-# 📈 Monthly Trend
+#  Monthly Trend
 # ----------------------------
 st.markdown("<div class='glass'>", unsafe_allow_html=True)
-st.subheader("📈 Monthly Sales Trend")
+st.subheader(" Monthly Sales Trend")
 
 monthly_sales = (
     filtered_df.groupby('Month')['TotalSales']
@@ -147,25 +147,25 @@ st.plotly_chart(fig3, use_container_width=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ----------------------------
-# 🧠 Dynamic Insight
+#  Dynamic Insight
 # ----------------------------
 st.markdown("---")
-st.subheader("🧠 Live Insight")
+st.subheader(" Live Insight")
 
 if not filtered_df.empty:
     best_country = filtered_df.groupby('Country')['TotalSales'].sum().idxmax()
     top_product = filtered_df.groupby('Description')['TotalSales'].sum().idxmax()
 
-    st.success(f"🚀 Top Country: {best_country}")
-    st.info(f"🔥 Most Sold Product: {top_product}")
+    st.success(f"Top Country: {best_country}")
+    st.info(f" Most Sold Product: {top_product}")
 else:
     st.warning("No data available for selected filters")
 
 # ----------------------------
-# 📦 Product Drilldown
+#  Product Drilldown
 # ----------------------------
 st.markdown("---")
-st.subheader("🎯 Explore Product")
+st.subheader(" Explore Product")
 
 product = st.selectbox("Select Product", filtered_df['Description'].unique())
 
@@ -184,9 +184,9 @@ st.download_button(
 )
 
 # ----------------------------
-# 📂 Detailed View
+#  Detailed View
 # ----------------------------
 if view == "Detailed":
     st.markdown("---")
-    st.subheader("📂 Full Data")
+    st.subheader(" Full Data")
     st.dataframe(filtered_df)
