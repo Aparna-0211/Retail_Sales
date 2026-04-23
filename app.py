@@ -1,33 +1,15 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+import io
 
-st.set_page_config(page_title="Retail Dashboard", layout="wide")
+st.set_page_config(layout="wide")
 
-# ----------------------------
-#  Glass UI Styling
-# ----------------------------
-st.markdown("""
-<style>
-.stApp {
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-    color: white;
-}
-.glass {
-    background: rgba(255,255,255,0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 20px;
-    margin: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
+st.title("Retail Sales Dashboard")
 
-st.title(" Retail Sales Intelligence Dashboard")
-
-# ----------------------------
-# 📥 Load Data
-# ----------------------------
+# Load data
 @st.cache_data
 def load_data():
     df = pd.read_csv("online_retail.csv", encoding='ISO-8859-1')
@@ -40,179 +22,199 @@ def load_data():
 
 df = load_data()
 
-# ----------------------------
-#  Tabs
-# ----------------------------
-tab1, tab2 = st.tabs([" Dashboard", " Report"])
+# Tabs
+tab1, tab2, tab3 = st.tabs([" Dashboard", "Report", "Resources"])
 
-# ============================
-#  DASHBOARD TAB
-# ============================
+# ================= DASHBOARD =================
 with tab1:
 
-    # Sidebar Filters
-    st.sidebar.header(" Filters")
+    st.sidebar.header("Filters")
 
-    country = st.sidebar.multiselect(
-        "Country", df['Country'].unique(), default=df['Country'].unique()
-    )
+    country = st.sidebar.multiselect("Country", df['Country'].unique(), df['Country'].unique())
+    month = st.sidebar.multiselect("Month", df['Month'].unique(), df['Month'].unique())
 
-    month = st.sidebar.multiselect(
-        "Month", df['Month'].unique(), default=df['Month'].unique()
-    )
+    filtered_df = df[(df['Country'].isin(country)) & (df['Month'].isin(month))]
 
-    start_date = st.sidebar.date_input("Start Date", df['InvoiceDate'].min())
-    end_date = st.sidebar.date_input("End Date", df['InvoiceDate'].max())
+    total_sales = filtered_df['TotalSales'].sum()
 
-    # Apply filters
-    filtered_df = df[
-        (df['Country'].isin(country)) &
-        (df['Month'].isin(month)) &
-        (df['InvoiceDate'] >= pd.to_datetime(start_date)) &
-        (df['InvoiceDate'] <= pd.to_datetime(end_date))
-    ]
-
-    # 🔎 Search
-    search = st.text_input("🔎 Search Product")
-
-    if search:
-        filtered_df = filtered_df[
-            filtered_df['Description'].str.contains(search, case=False, na=False)
-        ]
-
-    # KPIs
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(" Total Sales", f"{filtered_df['TotalSales'].sum():,.0f}")
-    col2.metric(" Orders", filtered_df['InvoiceNo'].nunique())
-    col3.metric(" Countries", filtered_df['Country'].nunique())
-
-    st.markdown("---")
+    st.metric("Total Sales", f"{total_sales:,.0f}")
 
     # Charts
-    col1, col2 = st.columns(2)
+    top_products = filtered_df.groupby('Description')['TotalSales'].sum().sort_values(ascending=False).head(10)
 
-    with col1:
-        st.markdown("<div class='glass'>", unsafe_allow_html=True)
-        st.subheader("Top Products")
+    st.subheader("Top Products")
+    st.bar_chart(top_products)
 
-        top_products = (
-            filtered_df.groupby('Description')['TotalSales']
-            .sum()
-            .sort_values(ascending=False)
-            .head(10)
-            .reset_index()
-        )
+    st.subheader("Sales by Country")
+    st.bar_chart(filtered_df.groupby('Country')['TotalSales'].sum())
 
-        fig1 = px.bar(
-            top_products,
-            x='TotalSales',
-            y='Description',
-            orientation='h',
-            hover_data=['TotalSales']
-        )
-        st.plotly_chart(fig1, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # =========================
+# 🗄️ SQL Analysis Panel
+# =========================
+st.markdown("---")
+st.subheader("🗄️ SQL Analysis Panel")
 
-    with col2:
-        st.markdown("<div class='glass'>", unsafe_allow_html=True)
-        st.subheader("🌍 Sales by Country")
+query_option = st.selectbox(
+    "Choose Analysis",
+    [
+        "Total Sales",
+        "Sales by Country",
+        "Top Products",
+        "Monthly Sales"
+    ]
+)
 
-        country_sales = (
-            filtered_df.groupby('Country')['TotalSales']
-            .sum()
-            .reset_index()
-        )
+if query_option == "Total Sales":
+    query = "SELECT SUM(Quantity * UnitPrice) AS TotalSales FROM sales;"
+    result = filtered_df['TotalSales'].sum()
 
-        fig2 = px.pie(country_sales, names='Country', values='TotalSales')
-        st.plotly_chart(fig2, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.code(query, language="sql")
+    st.success(f" Result: {result:,.0f}")
 
-    st.markdown("---")
+elif query_option == "Sales by Country":
+    query = """
+    SELECT Country, SUM(Quantity * UnitPrice) AS TotalSales
+    FROM sales
+    GROUP BY Country
+    ORDER BY TotalSales DESC;
+    """
+    result = filtered_df.groupby('Country')['TotalSales'].sum().reset_index()
 
-    # Monthly Trend
-    st.markdown("<div class='glass'>", unsafe_allow_html=True)
-    st.subheader(" Monthly Sales Trend")
+    st.code(query, language="sql")
+    st.dataframe(result)
 
-    monthly_sales = (
+elif query_option == "Top Products":
+    query = """
+    SELECT Description, SUM(Quantity * UnitPrice) AS TotalSales
+    FROM sales
+    GROUP BY Description
+    ORDER BY TotalSales DESC
+    LIMIT 10;
+    """
+    result = (
+        filtered_df.groupby('Description')['TotalSales']
+        .sum()
+        .sort_values(ascending=False)
+        .head(10)
+        .reset_index()
+    )
+
+    st.code(query, language="sql")
+    st.dataframe(result)
+
+elif query_option == "Monthly Sales":
+    query = """
+    SELECT strftime('%m', InvoiceDate) AS Month,
+           SUM(Quantity * UnitPrice) AS TotalSales
+    FROM sales
+    GROUP BY Month;
+    """
+    result = (
         filtered_df.groupby('Month')['TotalSales']
         .sum()
         .reset_index()
     )
 
-    fig3 = px.line(monthly_sales, x='Month', y='TotalSales', markers=True)
-    st.plotly_chart(fig3, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.code(query, language="sql")
+    st.dataframe(result)
 
-    # Insights
-    st.markdown("---")
-    st.subheader(" Live Insight")
-
-    if not filtered_df.empty:
-        best_country = filtered_df.groupby('Country')['TotalSales'].sum().idxmax()
-        top_product = filtered_df.groupby('Description')['TotalSales'].sum().idxmax()
-
-        st.success(f" Top Country: {best_country}")
-        st.info(f" Most Sold Product: {top_product}")
-    else:
-        st.warning("No data available for selected filters")
-
-    # Product Drilldown
-    st.markdown("---")
-    st.subheader("Explore Product")
-
-    if not filtered_df.empty:
-        product = st.selectbox("Select Product", filtered_df['Description'].unique())
-        product_df = filtered_df[filtered_df['Description'] == product]
-        st.dataframe(product_df.head())
-
-    # Download
-    st.download_button(
-        label="📥 Download Filtered Data",
-        data=filtered_df.to_csv(index=False),
-        file_name="filtered_data.csv",
-        mime="text/csv"
-    )
-
-
+# ================= REPORT =================
 with tab2:
 
-    st.title(" Project Report")
+    st.title("📄 Project Report")
 
+    # ABSTRACT
     st.subheader("Abstract")
     st.write("""
-    This project analyzes retail sales data to extract meaningful insights
-    using Python, SQL, and Excel. An interactive dashboard is built using
-    Streamlit for real-time data visualization and decision-making.
+    This project focuses on analyzing retail sales data using Python, SQL, and Excel.
+    The objective is to extract meaningful insights that support business decision-making.
+    An interactive dashboard is developed using Streamlit for real-time data visualization.
     """)
 
+    # INTRODUCTION
     st.subheader("Introduction")
     st.write("""
-    Retail businesses generate large volumes of data. Analyzing this data
-    helps identify trends, improve inventory management, and enhance
-    decision-making processes.
+    Retail businesses generate large volumes of transactional data. Analyzing this data
+    helps identify trends, understand customer behavior, and improve business strategies.
+    This project demonstrates how data analytics tools can transform raw data into insights.
     """)
 
+    # OBJECTIVES
     st.subheader("Objectives")
     st.write("""
-    - Analyze retail sales data  
-    - Perform data cleaning and preprocessing  
-    - Generate insights using SQL and Excel  
-    - Build an interactive dashboard  
+    - Analyze retail sales data
+    - Perform data cleaning and preprocessing
+    - Generate insights using SQL and Excel
+    - Develop an interactive dashboard
     """)
 
+    # TOOLS
+    st.subheader("Tools & Technologies")
+    st.write("""
+    - Python (Pandas, Plotly, Streamlit)
+    - SQL (SQLite)
+    - Excel
+    """)
+
+    # DATA DESCRIPTION
+    st.subheader("Dataset Description")
+    st.write("""
+    The dataset contains retail transaction records including product details,
+    quantity, price, and country. It is used to analyze sales patterns and trends.
+    """)
+
+    # DATA CLEANING
+    st.subheader("Data Cleaning")
+    st.write("""
+    - Removed missing values
+    - Removed duplicate entries
+    - Filtered invalid data (negative values)
+    """)
+
+    # RESULTS
     st.subheader("Results & Findings")
 
-    total_sales = df['TotalSales'].sum()
-    top_product = df.groupby('Description')['TotalSales'].sum().idxmax()
-    top_country = df.groupby('Country')['TotalSales'].sum().idxmax()
+    if not filtered_df.empty:
+        total_sales = filtered_df['TotalSales'].sum()
+        top_product = filtered_df.groupby('Description')['TotalSales'].sum().idxmax()
+        top_country = filtered_df.groupby('Country')['TotalSales'].sum().idxmax()
 
-    st.write(f" Total Sales: {total_sales:,.0f}")
-    st.write(f" Top Product: {top_product}")
-    st.write(f" Top Country: {top_country}")
+        st.write(f" Total Sales: {total_sales:,.0f}")
+        st.write(f" Top Product: {top_product}")
+        st.write(f"Top Country: {top_country}")
 
+        st.info("These results dynamically update based on selected filters.")
+
+    # CONCLUSION
     st.subheader("Conclusion")
     st.write("""
-    The project successfully demonstrates how data analysis tools can be used
-    to extract insights from retail data and support business decisions.
+    The project successfully demonstrates how retail data can be analyzed using
+    modern tools. The insights generated help improve decision-making and business performance.
     """)
+
+# ================= RESOURCES =================
+with tab3:
+
+    st.subheader("Excel Dashboard")
+
+    
+    try:
+        excel_df = pd.read_excel("automated_dashboard.xlsx", sheet_name="Dashboard")
+        st.dataframe(excel_df)
+    except:
+        st.warning(" Run analysis.py to generate updated Excel")
+    
+
+    try:
+        with open("automated_dashboard.xlsx", "rb") as f:
+            st.download_button("Download Excel", f, "dashboard.xlsx")
+    except:
+        pass
+
+    st.subheader("PPT")
+
+    try:
+        with open("presentation.pptx", "rb") as f:
+            st.download_button("Download PPT", f, "presentation.pptx")
+    except:
+        st.warning("Upload PPT file")
